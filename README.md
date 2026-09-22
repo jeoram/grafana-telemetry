@@ -2,6 +2,10 @@
 
 Un système complet de métriques et de télémétrie temps réel mariant le langage **C++ (C++17)** et la plateforme d'observabilité **Grafana** (via Prometheus).
 
+![Grafana Dashboard Preview](docs/dashboard_preview.png)
+
+> 💡 **Aperçu interactif dans le navigateur** : Ouvrez directement [dashboard_preview.html](dashboard_preview.html) dans n'importe quel navigateur pour tester le tableau de bord animé en temps réel.
+
 ---
 
 ## 🏗️ Architecture du Projet
@@ -41,7 +45,7 @@ Un système complet de métriques et de télémétrie temps réel mariant le lan
    - **Gauges** : `trading_bid_ask_spread_dollars`, `trading_order_book_depth`, `trading_engine_cpu_percent`, `trading_engine_memory_bytes`
    - **Histograms** : `trading_order_latency_microseconds` avec calculs de centiles (p50, p90, p99).
 
-3. **Dashboard Grafana Auto-provisionné** :
+3. **Dashboard Grafana Auto-provisionné (`config/grafana/dashboards/trading_telemetry.json`)** :
    - Tableau de bord pré-configuré chargé automatiquement dès le démarrage du conteneur.
    - 8 panneaux d'affichage interactifs (Taux d'opérations/sec, Heatmaps de latence, Jauges de spread, Courbes CPU/RAM).
 
@@ -76,8 +80,11 @@ docker compose up --build -d
 cpp-grafana-telemetry/
 ├── Dockerfile                      # Compilation C++ multi-stage (Alpine/GCC)
 ├── docker-compose.yml              # Orchestration (C++ Engine + Prometheus + Grafana)
+├── dashboard_preview.html          # Aperçu HTML interactif temps réel
 ├── Makefile                        # Raccourcis de commandes
 ├── README.md                       # Documentation du projet
+├── docs/
+│   └── dashboard_preview.png       # Capture visuelle du dashboard Grafana
 ├── config/
 │   ├── prometheus.yml              # Configuration du scraping Prometheus (1s)
 │   └── grafana/
