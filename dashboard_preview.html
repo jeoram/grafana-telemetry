@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grafana - C++ Trading Telemetry Dashboard (Live Preview)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        body {
+            background-color: #111217;
+            color: #ccccdc;
+            padding: 16px;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #181b1f;
+            padding: 12px 20px;
+            border-radius: 6px;
+            border: 1px solid #22252b;
+            margin-bottom: 16px;
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 18px;
+            font-weight: 700;
+            color: #fff;
+        }
+        .logo-icon {
+            width: 24px;
+            height: 24px;
+            background: linear-gradient(135deg, #f96d00, #ff9e00);
+            border-radius: 4px;
+        }
+        .badge {
+            background: rgba(46, 204, 113, 0.15);
+            color: #2ecc71;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            border: 1px solid rgba(46, 204, 113, 0.3);
+        }
+        .time-picker {
+            font-size: 13px;
+            color: #8e8e9e;
+            background: #22252b;
+            padding: 6px 12px;
+            border-radius: 4px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .panel {
+            background: #181b1f;
+            border: 1px solid #22252b;
+            border-radius: 6px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+        }
+        .panel-header {
+            font-size: 13px;
+            font-weight: 600;
+            color: #8e8e9e;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+        }
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+        .stat-sub {
+            font-size: 12px;
+            color: #2ecc71;
+            font-weight: 500;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 260px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo">
+            <div class="logo-icon"></div>
+            <span>C++ Trading Telemetry Dashboard</span>
+            <span class="badge">● LIVE STREAM (1s)</span>
+        </div>
+        <div class="time-picker">Last 5 minutes | Refresh: 1s</div>
+    </header>
+
+    <!-- Top Metric Stats -->
+    <div class="grid">
+        <div class="panel">
+            <div class="panel-header">Total Orders Processed</div>
+            <div class="stat-value" id="stat-orders">142,850</div>
+            <div class="stat-sub">↑ 485 / sec</div>
+        </div>
+        <div class="panel">
+            <div class="panel-header">Order Processing Rate</div>
+            <div class="stat-value" style="color: #3498db;" id="stat-rate">485.2 ops</div>
+            <div class="stat-sub" style="color: #3498db;">Multi-threaded C++ Engine</div>
+        </div>
+        <div class="panel">
+            <div class="panel-header">Current Bid-Ask Spread</div>
+            <div class="stat-value" style="color: #f1c40f;" id="stat-spread">$0.042</div>
+            <div class="stat-sub" style="color: #f1c40f;">Market Volatility Normal</div>
+        </div>
+        <div class="panel">
+            <div class="panel-header">Order Book Depth</div>
+            <div class="stat-value" style="color: #9b59b6;" id="stat-depth">1,840</div>
+            <div class="stat-sub" style="color: #9b59b6;">Active Bids/Asks</div>
+        </div>
+    </div>
+
+    <!-- Charts Row 1 -->
+    <div class="grid-2">
+        <div class="panel">
+            <div class="panel-header">Matching Engine Latency (Microseconds μs)</div>
+            <div class="chart-container">
+                <canvas id="latencyChart"></canvas>
+            </div>
+        </div>
+        <div class="panel">
+            <div class="panel-header">Bid-Ask Spread Volatility ($ USD)</div>
+            <div class="chart-container">
+                <canvas id="spreadChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row 2 -->
+    <div class="grid-2">
+        <div class="panel">
+            <div class="panel-header">C++ Engine System Telemetry (CPU % & RAM MB)</div>
+            <div class="chart-container">
+                <canvas id="sysChart"></canvas>
+            </div>
+        </div>
+        <div class="panel">
+            <div class="panel-header">Order Type Throughput (Limit vs Market)</div>
+            <div class="chart-container">
+                <canvas id="ordersChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const labels = Array.from({length: 20}, (_, i) => `${20 - i}s ago`).reverse();
+
+        // 1. Latency Chart
+        const ctxLatency = document.getElementById('latencyChart').getContext('2d');
+        const latencyChart = new Chart(ctxLatency, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    { label: 'p50 Latency (μs)', data: [110, 115, 108, 120, 112, 118, 125, 114, 110, 116, 122, 119, 111, 115, 120, 113, 117, 121, 114, 118], borderColor: '#2ecc71', tension: 0.4 },
+                    { label: 'p90 Latency (μs)', data: [280, 295, 275, 310, 290, 305, 320, 285, 290, 300, 315, 308, 292, 298, 312, 289, 302, 318, 295, 305], borderColor: '#f39c12', tension: 0.4 },
+                    { label: 'p99 Latency (μs)', data: [650, 710, 680, 1420, 750, 690, 810, 660, 730, 790, 850, 720, 695, 740, 1850, 780, 710, 830, 760, 790], borderColor: '#e74c3c', tension: 0.4 }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: '#8e8e9e' } } },
+                scales: {
+                    x: { grid: { color: '#22252b' }, ticks: { color: '#8e8e9e' } },
+                    y: { grid: { color: '#22252b' }, ticks: { color: '#8e8e9e' } }
+                }
+            }
+        });
+
+        // 2. Spread Chart
+        const ctxSpread = document.getElementById('spreadChart').getContext('2d');
+        const spreadChart = new Chart(ctxSpread, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Spread ($)',
+                    data: [0.05, 0.04, 0.06, 0.08, 0.05, 0.03, 0.07, 0.04, 0.05, 0.06, 0.09, 0.04, 0.03, 0.05, 0.07, 0.04, 0.05, 0.04, 0.06, 0.042],
+                    borderColor: '#f1c40f',
+                    backgroundColor: 'rgba(241, 196, 15, 0.1)',
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: '#8e8e9e' } } },
+                scales: {
+                    x: { grid: { color: '#22252b' }, ticks: { color: '#8e8e9e' } },
+                    y: { grid: { color: '#22252b' }, ticks: { color: '#8e8e9e' } }
+                }
+            }
+        });
+
+        // 3. System Telemetry Chart
+        const ctxSys = document.getElementById('sysChart').getContext('2d');
+        const sysChart = new Chart(ctxSys, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    { label: 'CPU Usage (%)', data: [14, 18, 15, 22, 19, 16, 25, 17, 15, 20, 23, 18, 16, 19, 21, 17, 20, 24, 18, 19], borderColor: '#9b59b6', tension: 0.3 },
+                    { label: 'RAM Memory (MB)', data: [42, 43, 42, 44, 43, 42, 45, 43, 42, 43, 44, 43, 42, 43, 44, 43, 44, 45, 43, 44], borderColor: '#3498db', tension: 0.3 }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: '#8e8e9e' } } },
+                scales: {
+                    x: { grid: { color: '#22252b' }, ticks: { color: '#8e8e9e' } },
+                    y: { grid: { color: '#22252b' }, ticks: { color: '#8e8e9e' } }
+                }
+            }
+        });
+
+        // 4. Orders Throughput Chart
+        const ctxOrders = document.getElementById('ordersChart').getContext('2d');
+        const ordersChart = new Chart(ctxOrders, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    { label: 'Limit Orders / sec', data: [320, 340, 310, 350, 330, 325, 360, 335, 320, 345, 355, 330, 315, 340, 350, 325, 340, 365, 330, 345], borderColor: '#1abc9c', backgroundColor: 'rgba(26, 188, 156, 0.2)', fill: true, tension: 0.3 },
+                    { label: 'Market Orders / sec', data: [140, 150, 135, 160, 145, 140, 170, 150, 140, 155, 160, 145, 138, 150, 155, 142, 150, 165, 145, 140], borderColor: '#e67e22', backgroundColor: 'rgba(230, 126, 34, 0.2)', fill: true, tension: 0.3 }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: '#8e8e9e' } } },
+                scales: {
+                    x: { grid: { color: '#22252b' }, ticks: { color: '#8e8e9e' } },
+                    y: { grid: { color: '#22252b' }, ticks: { color: '#8e8e9e' } }
+                }
+            }
+        });
+
+        // Live simulation animation loop
+        let totalOrders = 142850;
+        setInterval(() => {
+            totalOrders += Math.floor(Math.random() * 50) + 450;
+            document.getElementById('stat-orders').innerText = totalOrders.toLocaleString();
+            
+            const rate = (450 + (Math.random() * 60 - 30)).toFixed(1);
+            document.getElementById('stat-rate').innerText = `${rate} ops`;
+
+            const spread = (0.03 + Math.random() * 0.05).toFixed(3);
+            document.getElementById('stat-spread').innerText = `$${spread}`;
+
+            const depth = Math.floor(1500 + Math.random() * 600);
+            document.getElementById('stat-depth').innerText = depth.toLocaleString();
+        }, 1000);
+    </script>
+</body>
+</html>
