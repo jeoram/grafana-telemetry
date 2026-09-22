@@ -1,0 +1,16 @@
+# Build output
+trading_engine
+*.o
+*.exe
+*.a
+*.so
+*.dylib
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
